@@ -68,42 +68,47 @@ namespace Juntador_de_Atestados
 		if (string.IsNullOrWhiteSpace(input)) return; // ignora vazio
 
 		string[] partes = input.Split(' '); // separa por espaço
-		List<(DateTime inicio, DateTime fim)> periodos = new List<(DateTime, DateTime)>(); // lista de períodos
+		List<(DateTime inicio, DateTime fim)> periodos = new(); // lista de períodos
 		DateTime agora = DateTime.Today; // data atual
 
 		// ----------------------------------------
-		// MODO ESPECIAL: APENAS DUAS DATAS
+		// MODO ESPECIAL: DUAS DATAS (ou data + dias)
 		// ----------------------------------------
 		if (partes.Length == 2)
 		{
-		 DateTime data1 = parse_data(partes[0], agora); // converte primeira data
-		 DateTime data2 = parse_data(partes[1], agora); // converte segunda data
+		 DateTime d1 = parse_data(partes[0], agora); // primeira data
 
-		 if (data2 < data1) throw new Exception(); // não pode ter fim antes do início
-
-		 int dias = (data2 - data1).Days + 1; // calcula número de dias corridos
-		 DateTime fim = data1.AddDays(dias - 1); // calcula fim real (seguro)
-
-		 periodos.Add((data1, fim)); // adiciona como período
+		 if (int.TryParse(partes[1], out int dias)) // data + dias
+		 {
+			DateTime fim = d1.AddDays(dias - 1);
+			periodos.Add((d1, fim));
+		 }
+		 else // data + data
+		 {
+			DateTime d2 = parse_data(partes[1], agora);
+			if (d2 < d1) throw new Exception();
+			int dias_corridos = (d2 - d1).Days + 1;
+			DateTime fim = d1.AddDays(dias_corridos - 1);
+			periodos.Add((d1, fim));
+		 }
 		}
 		else
 		{
 		 // ----------------------------------------
-		 // MODO NORMAL: data dias data dias ...
+		 // MODO NORMAL: pares data dias
 		 // ----------------------------------------
-		 if (partes.Length < 2 || partes.Length % 2 != 0)
-			throw new Exception(); // precisa de pares
+		 if (partes.Length < 2 || partes.Length % 2 != 0) throw new Exception();
 
 		 for (int i = 0; i < partes.Length; i += 2)
 		 {
-			string strdata = partes[i];      // parte da data
-			string strdias = partes[i + 1];  // parte dos dias
+			string strdata = partes[i];
+			string strdias = partes[i + 1];
 
-			int dias = int.Parse(strdias); // converte dias
-			DateTime data = parse_data(strdata, agora); // converte data
+			int dias = int.Parse(strdias);
+			DateTime data = parse_data(strdata, agora);
+			DateTime fim = data.AddDays(dias - 1);
 
-			DateTime fim = data.AddDays(dias - 1); // calcula fim do período
-			periodos.Add((data, fim)); // adiciona o par
+			periodos.Add((data, fim));
 		 }
 		}
 
@@ -111,7 +116,7 @@ namespace Juntador_de_Atestados
 		// AGRUPA PERÍODOS CONFLUENTES
 		// ----------------------------------------
 		periodos = periodos.OrderBy(p => p.inicio).ToList();
-		List<(DateTime ini, DateTime fim)> blocos = new List<(DateTime, DateTime)>();
+		List<(DateTime ini, DateTime fim)> blocos = new();
 
 		DateTime atual_ini = periodos[0].inicio;
 		DateTime atual_fim = periodos[0].fim;
@@ -119,9 +124,7 @@ namespace Juntador_de_Atestados
 		for (int i = 1; i < periodos.Count; i++)
 		{
 		 if (periodos[i].inicio <= atual_fim.AddDays(1))
-		 {
 			atual_fim = (periodos[i].fim > atual_fim) ? periodos[i].fim : atual_fim;
-		 }
 		 else
 		 {
 			blocos.Add((atual_ini, atual_fim));
@@ -138,10 +141,8 @@ namespace Juntador_de_Atestados
 		int duracao = (maior.fim - maior.ini).Days + 1;
 
 		tb_resultado.Text = $"Maior prazo: {maior.ini:dd/MM/yy} - {duracao} dias (até {maior.fim:dd/MM/yy})";
-		Clipboard.SetText(maior.ini.ToString("dd/MM/yyyy")); // copia data inicial completa
-
-
-		finaliza(); // salva posição da janela
+		Clipboard.SetText(maior.ini.ToString("dd/MM/yyyy")); // copia para área de transferência
+		finaliza();
 	 }
 	 catch
 	 {
@@ -172,53 +173,41 @@ namespace Juntador_de_Atestados
 	}
 
 	// ----------------------------------------
-	// FUNÇÃO parse_data
-	// Converte string em DateTime. Suporta:
-	// - ddMMyy
-	// - ddMMyyyy
-	// - ddMM (ano é inferido)
+	// CONVERTE TEXTO DE DATA FLEXÍVEL
+	// Suporta formatos ddmm, ddmmyy e ddmmyyyy
 	// ----------------------------------------
-	private DateTime parse_data(string entrada, DateTime agora)
+	private DateTime parse_data(string str, DateTime hoje)
 	{
-	 if (entrada.Length == 4) // formato ddMM
+	 str = str.Trim();
+
+	 // --- 4 dígitos (ddmm) ---
+	 if (str.Length == 4)
 	 {
-		int dia = int.Parse(entrada.Substring(0, 2));
-		int mes = int.Parse(entrada.Substring(2, 2));
-		int ano = agora.Year;
+		int dia = int.Parse(str.Substring(0, 2));
+		int mes = int.Parse(str.Substring(2, 2));
+		int ano = hoje.Year;
 
-		try
-		{
-		 DateTime data = new DateTime(ano, mes, dia);
+		// se a data estiver no futuro, assume ano anterior
+		DateTime data = new DateTime(ano, mes, dia);
+		if (data > hoje) data = new DateTime(ano - 1, mes, dia);
 
-		 // se a data for futura, assume que é do ano passado
-		 if (data > agora)
-			data = data.AddYears(-1);
-
-		 return data;
-		}
-		catch
-		{
-		 throw new Exception("Data inválida");
-		}
+		return data;
 	 }
 
-	 if (entrada.Length == 6) // formato ddMMyy
+	 // --- 6 dígitos (ddmmyy) ---
+	 if (str.Length == 6)
 	 {
-		int dia = int.Parse(entrada.Substring(0, 2));
-		int mes = int.Parse(entrada.Substring(2, 2));
-		int ano = 2000 + int.Parse(entrada.Substring(4, 2));
-		return new DateTime(ano, mes, dia);
+		return DateTime.ParseExact(str, "ddMMyy", null);
 	 }
 
-	 if (entrada.Length == 8) // formato ddMMyyyy
+	 // --- 8 dígitos (ddmmyyyy) ---
+	 if (str.Length == 8)
 	 {
-		int dia = int.Parse(entrada.Substring(0, 2));
-		int mes = int.Parse(entrada.Substring(2, 2));
-		int ano = int.Parse(entrada.Substring(4, 4));
-		return new DateTime(ano, mes, dia);
+		return DateTime.ParseExact(str, "ddMMyyyy", null);
 	 }
 
-	 throw new Exception("Formato de data não reconhecido");
+	 // formato inválido
+	 throw new FormatException("Formato de data inválido.");
 	}
 
 
