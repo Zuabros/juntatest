@@ -138,6 +138,8 @@ namespace Juntador_de_Atestados
 		int duracao = (maior.fim - maior.ini).Days + 1;
 
 		tb_resultado.Text = $"Maior prazo: {maior.ini:dd/MM/yy} - {duracao} dias (até {maior.fim:dd/MM/yy})";
+		Clipboard.SetText(maior.ini.ToString("dd/MM/yyyy")); // copia data inicial completa
+
 
 		finaliza(); // salva posição da janela
 	 }
@@ -170,35 +172,55 @@ namespace Juntador_de_Atestados
 	}
 
 	// ----------------------------------------
-	// FUNÇÃO DE PARSE DE DATA
-	// Interpreta dd/mm, dd/mm/yy, ddmmaaaa etc.
+	// FUNÇÃO parse_data
+	// Converte string em DateTime. Suporta:
+	// - ddMMyy
+	// - ddMMyyyy
+	// - ddMM (ano é inferido)
 	// ----------------------------------------
-	private DateTime parse_data(string strdata, DateTime agora)
+	private DateTime parse_data(string entrada, DateTime agora)
 	{
-	 if (strdata.Contains("/")) // formato com barra
+	 if (entrada.Length == 4) // formato ddMM
 	 {
-		string[] pedacos = strdata.Split('/');
-		int d = int.Parse(pedacos[0]);
-		int m = int.Parse(pedacos[1]);
-		int y = (pedacos.Length >= 3) ? int.Parse(pedacos[2]) : agora.Year;
-		if (y < 100) y += 2000;
-		DateTime data = new DateTime(y, m, d);
-		if (data > agora && pedacos.Length < 3) data = data.AddYears(-1);
-		return data;
+		int dia = int.Parse(entrada.Substring(0, 2));
+		int mes = int.Parse(entrada.Substring(2, 2));
+		int ano = agora.Year;
+
+		try
+		{
+		 DateTime data = new DateTime(ano, mes, dia);
+
+		 // se a data for futura, assume que é do ano passado
+		 if (data > agora)
+			data = data.AddYears(-1);
+
+		 return data;
+		}
+		catch
+		{
+		 throw new Exception("Data inválida");
+		}
 	 }
-	 else if (strdata.Length == 6 || strdata.Length == 8) // ddmmaa ou ddmmaaaa
+
+	 if (entrada.Length == 6) // formato ddMMyy
 	 {
-		int d = int.Parse(strdata.Substring(0, 2));
-		int m = int.Parse(strdata.Substring(2, 2));
-		int y = int.Parse(strdata.Substring(4));
-		if (y < 100) y += 2000;
-		return new DateTime(y, m, d);
+		int dia = int.Parse(entrada.Substring(0, 2));
+		int mes = int.Parse(entrada.Substring(2, 2));
+		int ano = 2000 + int.Parse(entrada.Substring(4, 2));
+		return new DateTime(ano, mes, dia);
 	 }
-	 else
+
+	 if (entrada.Length == 8) // formato ddMMyyyy
 	 {
-		throw new Exception(); // formato inválido
+		int dia = int.Parse(entrada.Substring(0, 2));
+		int mes = int.Parse(entrada.Substring(2, 2));
+		int ano = int.Parse(entrada.Substring(4, 4));
+		return new DateTime(ano, mes, dia);
 	 }
+
+	 throw new Exception("Formato de data não reconhecido");
 	}
+
 
 	// ----------------------------------------
 	// BOTÃO AJUDA "?" 
@@ -207,8 +229,11 @@ namespace Juntador_de_Atestados
 	private void button1_Click(object sender, EventArgs e)
 	{
 	 string msg =
- @"Nome do programa: Juntatest 1.0. Livre distribuição.
-Autor: Ramiro Ayres Reggiani, perito médico federal.
+ @"Nome do programa: Juntatest. Livre distribuição.
+Função: Merger de datas de atestados médicos e 
+calculo de data de cessação do benefício.
+Autor: Ramiro Ayres Reggiani, Perito Médico Federal.
+CRM 22.820 PR / RQE 25.729.
 Contato: (42) 99923-8123 (WhatsApp)
 Licença: Freeware.
 GitHub: https://github.com/Zuabros/juntatest (GNU)
@@ -276,6 +301,10 @@ do maior afastamento, no formato dd/mm/yyyy.";
 	 // limpa os campos
 	 tb_atestados.Text = "";
 	 tb_resultado.Text = "";
+
+	 // retorna o foco para o campo de entrada
+	 tb_atestados.Focus();
 	}
+
  }
 }
