@@ -83,7 +83,7 @@
 	 Controls.Add(tb_resultado);
 	 Controls.Add(tb_atestados);
 	 Name = "Form1";
-	 Text = "Juntatest 1.3";
+	 Text = "Juntatest 1.31";
 	 ResumeLayout(false);
 	 PerformLayout();
 	}

@@ -76,22 +76,30 @@ namespace Juntador_de_Atestados
 		// ----------------------------------------
 		if (partes.Length == 2)
 		{
-		 DateTime d1 = parse_data(partes[0], agora); // primeira data
+		 string a = partes[0];
+		 string b = partes[1];
 
-		 if (int.TryParse(partes[1], out int dias)) // data + dias
+		 bool a_data = tenta_parse_data(a, agora, out DateTime data1);
+		 bool b_data = tenta_parse_data(b, agora, out DateTime data2);
+
+		 if (a_data && b_data)
 		 {
-			DateTime fim = d1.AddDays(dias - 1);
-			periodos.Add((d1, fim));
+			if (data2 < data1) throw new Exception(); // fim antes do início
+			int dias = (data2 - data1).Days + 1;
+			DateTime fim = data1.AddDays(dias - 1);
+			periodos.Add((data1, fim));
 		 }
-		 else // data + data
+		 else if (a_data && int.TryParse(b, out int dias2))
 		 {
-			DateTime d2 = parse_data(partes[1], agora);
-			if (d2 < d1) throw new Exception();
-			int dias_corridos = (d2 - d1).Days + 1;
-			DateTime fim = d1.AddDays(dias_corridos - 1);
-			periodos.Add((d1, fim));
+			DateTime fim = data1.AddDays(dias2 - 1);
+			periodos.Add((data1, fim));
+		 }
+		 else
+		 {
+			throw new Exception(); // nenhum caso válido
 		 }
 		}
+
 		else
 		{
 		 // ----------------------------------------
@@ -259,6 +267,44 @@ Limpa os campos e copia para a área de transferência a data de início
 do maior afastamento, no formato dd/mm/yyyy.";
 
 	 MessageBox.Show(msg, "Ajuda - Juntatest", MessageBoxButtons.OK, MessageBoxIcon.Information);
+	}
+
+	private bool tenta_parse_data(string entrada, DateTime agora, out DateTime resultado)
+	{
+	 resultado = DateTime.MinValue;
+
+	 // ddMMyyyy
+	 if (DateTime.TryParseExact(entrada, "ddMMyyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // ddMMyy
+	 if (DateTime.TryParseExact(entrada, "ddMMyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // dd/MM/yyyy
+	 if (DateTime.TryParseExact(entrada, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // dd/MM/yy
+	 if (DateTime.TryParseExact(entrada, "dd/MM/yy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // ddMM (assume ano atual ou anterior)
+	 if (entrada.Length == 4 && int.TryParse(entrada.Substring(0, 2), out int dia) && int.TryParse(entrada.Substring(2, 2), out int mes))
+	 {
+		int ano = agora.Year;
+		try
+		{
+		 resultado = new DateTime(ano, mes, dia);
+		 // Se for futura, assume ano anterior
+		 if (resultado > agora)
+			resultado = new DateTime(ano - 1, mes, dia);
+		 return true;
+		}
+		catch { }
+	 }
+
+	 return false; // nenhuma conversão deu certo
 	}
 
 	// ----------------------------------------
