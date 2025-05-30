@@ -145,7 +145,11 @@ namespace Juntador_de_Atestados
 		// ----------------------------------------
 		// PEGA O MAIOR BLOCO
 		// ----------------------------------------
-		var maior = blocos.OrderByDescending(b => (b.fim - b.ini).TotalDays).First();
+		var maior = blocos
+	.OrderByDescending(b => (b.fim - b.ini).TotalDays) // ordena por duração
+	.ThenByDescending(b => b.ini) // desempata pelo início mais recente
+	.First();
+
 		int duracao = (maior.fim - maior.ini).Days + 1;
 
 		tb_resultado.Text = $"Maior prazo: {maior.ini:dd/MM/yy} - {duracao} dias (até {maior.fim:dd/MM/yy})";
