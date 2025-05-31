@@ -7,30 +7,20 @@ using System.Windows.Forms;
 
 namespace Juntador_de_Atestados
 {
-
-
- // ----------------------------------------
- // FORM PRINCIPAL
- // ----------------------------------------
  public partial class Form1 : Form
  {
 	public Form1()
 	{
-	 InitializeComponent(); // inicializa os controles
-	 this.Load += Form1_Load; // associa evento de load
+	 InitializeComponent();
+	 this.Load += Form1_Load;
 	}
-	// ----------------------------------------
-	// CLASSE ESTADO_JANELA
-	// Armazena posição da janela em JSON
-	// ----------------------------------------
+
 	class estado_janela
 	{
-	 public int left { get; set; }  // posição horizontal
-	 public int top { get; set; }   // posição vertical
+	 public int left { get; set; }
+	 public int top { get; set; }
 	}
-	// ----------------------------------------
-	// RESTAURA POSIÇÃO SALVA DA JANELA
-	// ----------------------------------------
+
 	private void Form1_Load(object sender, EventArgs e)
 	{
 	 try
@@ -39,7 +29,6 @@ namespace Juntador_de_Atestados
 		{
 		 string json = File.ReadAllText("juntatest.cfg");
 		 var estado = JsonSerializer.Deserialize<estado_janela>(json);
-
 		 if (estado != null)
 		 {
 			this.Left = estado.left;
@@ -49,71 +38,62 @@ namespace Juntador_de_Atestados
 	 }
 	 catch
 	 {
-		// ignora erro silenciosamente
+		// ignora erro
 	 }
 	}
 
-	// ----------------------------------------
-	// EVENTO TEXTCHANGED - tb_atestados
-	// Calcula o maior período confluente a
-	// partir da entrada digitada em tb_atestados
-	// ----------------------------------------
 	private void tb_atestados_TextChanged(object sender, EventArgs e)
 	{
-	 tb_resultado.Text = ""; // limpa resultado anterior
-
+	 tb_resultado.Text = "";
 	 try
 	 {
-		string input = tb_atestados.Text.Trim(); // pega texto digitado
-		if (string.IsNullOrWhiteSpace(input)) return; // ignora vazio
+		string input = tb_atestados.Text.Trim();
+		if (string.IsNullOrWhiteSpace(input)) return;
 
-		string[] partes = input.Split(' '); // separa por espaço
-		List<(DateTime inicio, DateTime fim)> periodos = new(); // lista de períodos
-		DateTime agora = DateTime.Today; // data atual
+		string[] partes = input.Split(' ');
+		List<(DateTime inicio, DateTime fim)> periodos = new();
+		DateTime agora = DateTime.Today;
 
-		// ----------------------------------------
-		// MODO ESPECIAL: DUAS DATAS (ou data + dias)
-		// ----------------------------------------
 		if (partes.Length == 2)
 		{
 		 string a = partes[0];
 		 string b = partes[1];
 
-		 bool a_data = tenta_parse_data(a, agora, out DateTime data1);
-		 bool b_data = tenta_parse_data(b, agora, out DateTime data2);
+		 bool a_data = tenta_parse_data(a, agora, false, out DateTime data1);
+		 bool b_data = tenta_parse_data(b, agora, true, out DateTime data2);
 
 		 if (a_data && b_data)
 		 {
-			if (data2 < data1) throw new Exception(); // fim antes do início
-			int dias = (data2 - data1).Days + 1;
-			DateTime fim = data1.AddDays(dias - 1);
-			periodos.Add((data1, fim));
+			// Ajusta o ano da segunda data para corresponder à primeira, se necessário
+			if (data2 < data1)
+			{
+			 try
+			 {
+				data2 = new DateTime(data1.Year, data2.Month, data2.Day);
+				if (data2 < data1)
+				{
+				 data2 = new DateTime(data1.Year + 1, data2.Month, data2.Day);
+				}
+			 }
+			 catch
+			 {
+				throw new Exception("Datas inválidas ou segunda data anterior à primeira.");
+			 }
+			}
+			periodos.Add((data1, data2));
 		 }
 		 else if (a_data && int.TryParse(b, out int dias2))
 		 {
-			// se o valor parecer dias, mas for grande demais, e puder ser interpretado como data
-			if (dias2 > 365 && tenta_parse_data(b, agora, out DateTime data_b))
-			{
-			 if (data_b < data1) throw new Exception();
-			 periodos.Add((data1, data_b));
-			}
-			else
-			{
-			 DateTime fim = data1.AddDays(dias2 - 1);
-			 periodos.Add((data1, fim));
-			}
+			DateTime fim = data1.AddDays(dias2 - 1);
+			periodos.Add((data1, fim));
 		 }
 		 else
 		 {
-			throw new Exception(); // nenhum caso válido
+			throw new Exception("Formato inválido para a segunda entrada.");
 		 }
 		}
-
 		else
 		{
-		 // ----------------------------------------
-		 // MODO NORMAL: pares data dias
-		 // ----------------------------------------
 		 if (partes.Length < 2 || partes.Length % 2 != 0) throw new Exception();
 
 		 for (int i = 0; i < partes.Length; i += 2)
@@ -129,9 +109,6 @@ namespace Juntador_de_Atestados
 		 }
 		}
 
-		// ----------------------------------------
-		// AGRUPA PERÍODOS CONFLUENTES
-		// ----------------------------------------
 		periodos = periodos.OrderBy(p => p.inicio).ToList();
 		List<(DateTime ini, DateTime fim)> blocos = new();
 
@@ -151,29 +128,23 @@ namespace Juntador_de_Atestados
 		}
 		blocos.Add((atual_ini, atual_fim));
 
-		// ----------------------------------------
-		// PEGA O MAIOR BLOCO
-		// ----------------------------------------
 		var maior = blocos
-	.OrderByDescending(b => (b.fim - b.ini).TotalDays) // ordena por duração
-	.ThenByDescending(b => b.ini) // desempata pelo início mais recente
-	.First();
+				.OrderByDescending(b => (b.fim - b.ini).TotalDays)
+				.ThenByDescending(b => b.ini)
+				.First();
 
 		int duracao = (maior.fim - maior.ini).Days + 1;
 
 		tb_resultado.Text = $"Maior prazo: {maior.ini:dd/MM/yy} - {duracao} dias (até {maior.fim:dd/MM/yy})";
-		Clipboard.SetText(maior.ini.ToString("dd/MM/yyyy")); // copia para área de transferência
+		Clipboard.SetText(maior.ini.ToString("dd/MM/yyyy"));
 		finaliza();
 	 }
 	 catch
 	 {
-		tb_resultado.Text = "Aperte o botão ? para ajuda.";
+		tb_resultado.Text = "Datas inválidas ou formato incorreto. Aperte o botão ? para ajuda.";
 	 }
 	}
 
-	// ----------------------------------------
-	// SALVA POSIÇÃO DA JANELA EM JSON
-	// ----------------------------------------
 	private void finaliza()
 	{
 	 try
@@ -183,9 +154,8 @@ namespace Juntador_de_Atestados
 		 left = this.Left,
 		 top = this.Top
 		};
-
 		string json = JsonSerializer.Serialize(estado);
-		File.WriteAllText("juntatest.cfg", json); // salva no mesmo diretório
+		File.WriteAllText("juntatest.cfg", json);
 	 }
 	 catch
 	 {
@@ -193,53 +163,71 @@ namespace Juntador_de_Atestados
 	 }
 	}
 
-	// ----------------------------------------
-	// CONVERTE TEXTO DE DATA FLEXÍVEL
-	// Suporta formatos ddmm, ddmmyy e ddmmyyyy
-	// ----------------------------------------
 	private DateTime parse_data(string str, DateTime hoje)
 	{
 	 str = str.Trim();
-
-	 // --- 4 dígitos (ddmm) ---
 	 if (str.Length == 4)
 	 {
 		int dia = int.Parse(str.Substring(0, 2));
 		int mes = int.Parse(str.Substring(2, 2));
 		int ano = hoje.Year;
-
-		// se a data estiver no futuro, assume ano anterior
 		DateTime data = new DateTime(ano, mes, dia);
 		if (data > hoje) data = new DateTime(ano - 1, mes, dia);
-
 		return data;
 	 }
-
-	 // --- 6 dígitos (ddmmyy) ---
 	 if (str.Length == 6)
 	 {
 		return DateTime.ParseExact(str, "ddMMyy", null);
 	 }
-
-	 // --- 8 dígitos (ddmmyyyy) ---
 	 if (str.Length == 8)
 	 {
 		return DateTime.ParseExact(str, "ddMMyyyy", null);
 	 }
-
-	 // formato inválido
 	 throw new FormatException("Formato de data inválido.");
 	}
 
+	private bool tenta_parse_data(string entrada, DateTime agora, bool allowFuture, out DateTime resultado)
+	{
+	 resultado = DateTime.MinValue;
 
-	// ----------------------------------------
-	// BOTÃO AJUDA "?" 
-	// Mostra informações do programa e instruções
-	// ----------------------------------------
+	 // ddMMyyyy
+	 if (DateTime.TryParseExact(entrada, "ddMMyyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // ddMMyy
+	 if (DateTime.TryParseExact(entrada, "ddMMyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // dd/MM/yyyy
+	 if (DateTime.TryParseExact(entrada, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // dd/MM/yy
+	 if (DateTime.TryParseExact(entrada, "dd/MM/yy", null, System.Globalization.DateTimeStyles.None, out resultado))
+		return true;
+
+	 // ddMM
+	 if (entrada.Length == 4 && int.TryParse(entrada.Substring(0, 2), out int dia) && int.TryParse(entrada.Substring(2, 2), out int mes))
+	 {
+		int ano = agora.Year;
+		try
+		{
+		 resultado = new DateTime(ano, mes, dia);
+		 // Se não permitir datas futuras, ajusta para o ano anterior
+		 if (!allowFuture && resultado > agora)
+			resultado = new DateTime(ano - 1, mes, dia);
+		 return true;
+		}
+		catch { }
+	 }
+
+	 return false;
+	}
+
 	private void button1_Click(object sender, EventArgs e)
 	{
 	 string msg =
- @"Nome do programa: Juntatest. Livre distribuição.
+@"Nome do programa: Juntatest. Livre distribuição.
 Função: Merger de datas de atestados médicos e 
 calculo de data de cessação do benefício.
 Autor: Ramiro Ayres Reggiani, Perito Médico Federal.
@@ -278,52 +266,9 @@ BOTÃO ""NOVO""
 ----------------------------------------
 Limpa os campos e copia para a área de transferência a data de início 
 do maior afastamento, no formato dd/mm/yyyy.";
-
 	 MessageBox.Show(msg, "Ajuda - Juntatest", MessageBoxButtons.OK, MessageBoxIcon.Information);
 	}
 
-	private bool tenta_parse_data(string entrada, DateTime agora, out DateTime resultado)
-	{
-	 resultado = DateTime.MinValue;
-
-	 // ddMMyyyy
-	 if (DateTime.TryParseExact(entrada, "ddMMyyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
-		return true;
-
-	 // ddMMyy
-	 if (DateTime.TryParseExact(entrada, "ddMMyy", null, System.Globalization.DateTimeStyles.None, out resultado))
-		return true;
-
-	 // dd/MM/yyyy
-	 if (DateTime.TryParseExact(entrada, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.None, out resultado))
-		return true;
-
-	 // dd/MM/yy
-	 if (DateTime.TryParseExact(entrada, "dd/MM/yy", null, System.Globalization.DateTimeStyles.None, out resultado))
-		return true;
-
-	 // ddMM (assume ano atual ou anterior)
-	 if (entrada.Length == 4 && int.TryParse(entrada.Substring(0, 2), out int dia) && int.TryParse(entrada.Substring(2, 2), out int mes))
-	 {
-		int ano = agora.Year;
-		try
-		{
-		 resultado = new DateTime(ano, mes, dia);
-		 // Se for futura, assume ano anterior
-		 if (resultado > agora)
-			resultado = new DateTime(ano - 1, mes, dia);
-		 return true;
-		}
-		catch { }
-	 }
-
-	 return false; // nenhuma conversão deu certo
-	}
-
-	// ----------------------------------------
-	// BOTÃO NOVO
-	// Limpa campos e copia a data inicial do último resultado para a área de transferência
-	// ----------------------------------------
 	private void button2_Click(object sender, EventArgs e)
 	{
 	 try
@@ -331,13 +276,8 @@ do maior afastamento, no formato dd/mm/yyyy.";
 		string txt = tb_resultado.Text;
 		if (txt.StartsWith("Maior prazo: "))
 		{
-		 // extrai a data inicial no formato dd/mm/yy
-		 string data_curtinha = txt.Substring("Maior prazo: ".Length, 8); // pega 8 caracteres da data
-
-		 // converte para datetime com ano completo
+		 string data_curtinha = txt.Substring("Maior prazo: ".Length, 8);
 		 DateTime data_ini = DateTime.ParseExact(data_curtinha, "dd/MM/yy", null);
-
-		 // copia como dd/MM/yyyy
 		 Clipboard.SetText(data_ini.ToString("dd/MM/yyyy"));
 		}
 	 }
@@ -345,14 +285,9 @@ do maior afastamento, no formato dd/mm/yyyy.";
 	 {
 		// ignora erro
 	 }
-
-	 // limpa os campos
 	 tb_atestados.Text = "";
 	 tb_resultado.Text = "";
-
-	 // retorna o foco para o campo de entrada
 	 tb_atestados.Focus();
 	}
-
  }
 }
