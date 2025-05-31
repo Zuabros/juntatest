@@ -91,8 +91,17 @@ namespace Juntador_de_Atestados
 		 }
 		 else if (a_data && int.TryParse(b, out int dias2))
 		 {
-			DateTime fim = data1.AddDays(dias2 - 1);
-			periodos.Add((data1, fim));
+			// se o valor parecer dias, mas for grande demais, e puder ser interpretado como data
+			if (dias2 > 365 && tenta_parse_data(b, agora, out DateTime data_b))
+			{
+			 if (data_b < data1) throw new Exception();
+			 periodos.Add((data1, data_b));
+			}
+			else
+			{
+			 DateTime fim = data1.AddDays(dias2 - 1);
+			 periodos.Add((data1, fim));
+			}
 		 }
 		 else
 		 {
